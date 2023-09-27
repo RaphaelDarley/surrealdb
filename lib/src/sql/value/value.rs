@@ -57,6 +57,7 @@ use revision::revisioned;
 use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -109,7 +110,7 @@ pub fn whats(i: &str) -> IResult<&str, Values> {
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd, Serialize, Deserialize, Store, Hash)]
 #[serde(rename = "$surrealdb::private::sql::Value")]
 #[revisioned(revision = 1)]
-pub enum Value {
+pub enum Value<'a> {
 	// These value types are simple values which
 	// can be used in query responses sent to
 	// the client. They typically do not need to
@@ -126,8 +127,8 @@ pub enum Value {
 	Duration(Duration),
 	Datetime(Datetime),
 	Uuid(Uuid),
-	Array(Array),
-	Object(Object),
+	Array(Array<'a>),
+	Object(Object<'a>),
 	Geometry(Geometry),
 	Bytes(Bytes),
 	Thing(Thing),
@@ -485,6 +486,11 @@ impl From<Vec<i32>> for Value {
 	}
 }
 
+impl<'a> From<Vec<Cow<'a, Value>>> for Value {
+	fn from(v: Vec<Cow<Value>>) -> Self {
+		Value::Array(Array::from(v))
+	}
+}
 impl From<Vec<Value>> for Value {
 	fn from(v: Vec<Value>) -> Self {
 		Value::Array(Array::from(v))

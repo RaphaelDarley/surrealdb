@@ -1,10 +1,11 @@
 use crate::sql::part::Next;
 use crate::sql::part::Part;
 use crate::sql::value::Value;
+use std::borrow::Cow;
 
 impl Value {
 	/// Synchronous method for getting a field from a `Value`
-	pub fn pick(&self, path: &[Part]) -> Self {
+	pub fn pick(&self, path: &[Part]) -> Cow<Self> {
 		match path.first() {
 			// Get the current value at path
 			Some(p) => match self {
@@ -12,37 +13,42 @@ impl Value {
 				Value::Object(v) => match p {
 					Part::Field(f) => match v.get(f as &str) {
 						Some(v) => v.pick(path.next()),
-						None => Value::None,
+						None => Cow::Owned(Value::None),
 					},
 					Part::Index(i) => match v.get(&i.to_string()) {
 						Some(v) => v.pick(path.next()),
-						None => Value::None,
+						None => Cow::Owned(Value::None),
 					},
 					Part::All => self.pick(path.next()),
-					_ => Value::None,
+					_ => Cow::Owned(Value::None),
 				},
 				// Current value at path is an array
 				Value::Array(v) => match p {
-					Part::All => v.iter().map(|v| v.pick(path.next())).collect::<Vec<_>>().into(),
+					Part::All => Cow::Owned(
+						v.iter()
+							.map(|v| v.pick(path.next()).into_owned())
+							.collect::<Vec<Value>>()
+							.into::<Value>(),
+					),
 					Part::First => match v.first() {
 						Some(v) => v.pick(path.next()),
-						None => Value::None,
+						None => Cow::Owned(Value::None),
 					},
 					Part::Last => match v.last() {
 						Some(v) => v.pick(path.next()),
-						None => Value::None,
+						None => Cow::Owned(Value::None),
 					},
 					Part::Index(i) => match v.get(i.to_usize()) {
 						Some(v) => v.pick(path.next()),
-						None => Value::None,
+						None => Cow::Owned(Value::None),
 					},
 					_ => v.iter().map(|v| v.pick(path)).collect::<Vec<_>>().into(),
 				},
 				// Ignore everything else
-				_ => Value::None,
+				_ => Cow::Owned(Value::None),
 			},
 			// No more parts so get the value
-			None => self.clone(),
+			None => Cow::Borrowed(&self),
 		}
 	}
 }

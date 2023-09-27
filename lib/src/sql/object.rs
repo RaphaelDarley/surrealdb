@@ -21,6 +21,7 @@ use nom::sequence::delimited;
 use nom::Err;
 use revision::revisioned;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter, Write};
@@ -33,7 +34,7 @@ pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Object";
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, Hash)]
 #[serde(rename = "$surrealdb::private::sql::Object")]
 #[revisioned(revision = 1)]
-pub struct Object(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<String, Value>);
+pub struct Object<'a>(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<String, Cow<'a, Value>>);
 
 impl From<BTreeMap<String, Value>> for Object {
 	fn from(v: BTreeMap<String, Value>) -> Self {
