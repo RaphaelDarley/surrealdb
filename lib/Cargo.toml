@@ -50,6 +50,12 @@ features = [
 ]
 targets = []
 
+[profile.release]
+lto = true
+strip = true
+opt-level = 3
+codegen-units = 1
+
 [dependencies]
 addr = { version = "0.15.6", default-features = false, features = ["std"] }
 argon2 = "0.5.1"
