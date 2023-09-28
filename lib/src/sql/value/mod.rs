@@ -9,6 +9,7 @@ mod all;
 mod changed;
 mod clear;
 mod compare;
+mod cow_value;
 mod cut;
 mod decrement;
 mod def;

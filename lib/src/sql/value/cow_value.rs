@@ -41,7 +41,6 @@ use crate::sql::subquery::{subquery, Subquery};
 use crate::sql::table::{table, Table};
 use crate::sql::thing::{thing, Thing};
 use crate::sql::uuid::{uuid as unique, Uuid};
-pub use crate::sql::value::cow_value::CowValue;
 use crate::sql::{builtin, operator, Query};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
@@ -66,21 +65,23 @@ use std::fmt::{self, Display, Formatter, Write};
 use std::ops::Deref;
 use std::str::FromStr;
 
+use super::Value;
+
 pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Value";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, PartialOrd, Serialize, Deserialize, Hash)]
 #[revisioned(revision = 1)]
-pub struct Values<'a>(pub Vec<Value<'a>>);
+pub struct Values<'a>(pub Vec<CowValue<'a>>);
 
 impl<'a> Deref for Values<'a> {
-	type Target = Vec<Value<'a>>;
+	type Target = Vec<CowValue<'a>>;
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
 impl<'a> IntoIterator for Values<'a> {
-	type Item = Value<'a>;
+	type Item = CowValue<'a>;
 	type IntoIter = std::vec::IntoIter<Self::Item>;
 	fn into_iter(self) -> Self::IntoIter {
 		self.0.into_iter()
@@ -108,421 +109,384 @@ pub fn whats(i: &str) -> IResult<&str, Values> {
 	Ok((i, Values(v)))
 }
 
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Serialize, Deserialize, Store, Hash)]
-#[serde(rename = "$surrealdb::private::sql::Value")]
-#[revisioned(revision = 1)]
-pub enum Value<'a> {
-	// These value types are simple values which
-	// can be used in query responses sent to
-	// the client. They typically do not need to
-	// be computed, unless an un-computed value
-	// is present inside an Array or Object type.
-	// These types can also be used within indexes
-	// and sort according to their order below.
-	#[default]
-	None,
-	Null,
-	Bool(bool),
-	Number(Number),
-	Strand(Strand),
-	Duration(Duration),
-	Datetime(Datetime),
-	Uuid(Uuid),
-	Array(Array<'a>),
-	Object(Object<'a>),
-	Geometry(Geometry),
-	Bytes(Bytes),
-	Thing(Thing),
-	// These Value types are un-computed values
-	// and are not used in query responses sent
-	// to the client. These types need to be
-	// computed, in order to convert them into
-	// one of the simple types listed above.
-	// These types are first computed into a
-	// simple type before being used in indexes.
-	Param(Param),
-	Idiom(Idiom),
-	Table(Table),
-	Mock(Mock),
-	Regex(Regex),
-	Cast(Box<Cast>),
-	Block(Box<Block>),
-	Range(Box<Range>),
-	Edges(Box<Edges>),
-	Future(Box<Future>),
-	Constant(Constant),
-	// Closure(Box<Closure>),
-	Function(Box<Function>),
-	Subquery(Box<Subquery>),
-	Expression(Box<Expression>),
-	Query(Query),
-	MlModel(Box<Model>),
-	// Add new variants here
+pub struct CowValue<'a>(Cow<'a, Value<'a>>);
+impl<'a> Deref for CowValue<'a> {
+	type Target = Value<'a>;
+
+	fn deref(&self) -> &Self::Target {
+		self.0.deref()
+	}
 }
 
-impl Eq for Value<'_> {}
+impl<'a> From<Value<'a>> for CowValue<'a> {
+	fn from(value: Value<'a>) -> Self {
+		CowValue(Cow::Owned(value))
+	}
+}
+impl<'a> From<&Value<'a>> for CowValue<'a> {
+	fn from(value: &Value<'a>) -> Self {
+		CowValue(Cow::Borrowed(value))
+	}
+}
 
-impl Ord for Value<'_> {
+impl Eq for CowValue<'_> {}
+
+impl Ord for CowValue<'_> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.partial_cmp(other).unwrap_or(Ordering::Equal)
 	}
 }
 
-impl From<bool> for Value<'_> {
+impl From<bool> for CowValue<'_> {
 	#[inline]
 	fn from(v: bool) -> Self {
 		Value::Bool(v)
 	}
 }
 
-impl From<Uuid> for Value<'_> {
+impl From<Uuid> for CowValue<'_> {
 	fn from(v: Uuid) -> Self {
 		Value::Uuid(v)
 	}
 }
 
-impl From<Param> for Value<'_> {
+impl From<Param> for CowValue<'_> {
 	fn from(v: Param) -> Self {
 		Value::Param(v)
 	}
 }
 
-impl<'a> From<Idiom> for Value<'a> {
+impl<'a> From<Idiom> for CowValue<'a> {
 	fn from(v: Idiom) -> Self {
 		Value::Idiom(v)
 	}
 }
 
-impl<'a> From<Mock> for Value<'a> {
+impl<'a> From<Mock> for CowValue<'a> {
 	fn from(v: Mock) -> Self {
 		Value::Mock(v)
 	}
 }
 
-impl<'a> From<Table> for Value<'a> {
+impl<'a> From<Table> for CowValue<'a> {
 	fn from(v: Table) -> Self {
 		Value::Table(v)
 	}
 }
 
-impl<'a> From<Thing> for Value<'a> {
+impl<'a> From<Thing> for CowValue<'a> {
 	fn from(v: Thing) -> Self {
 		Value::Thing(v)
 	}
 }
 
-impl<'a> From<Regex> for Value<'a> {
+impl<'a> From<Regex> for CowValue<'a> {
 	fn from(v: Regex) -> Self {
 		Value::Regex(v)
 	}
 }
 
-impl<'a> From<Bytes> for Value<'a> {
+impl<'a> From<Bytes> for CowValue<'a> {
 	fn from(v: Bytes) -> Self {
 		Value::Bytes(v)
 	}
 }
 
-impl<'a> From<Array<'a>> for Value<'a> {
+impl<'a> From<Array<'a>> for CowValue<'a> {
 	fn from(v: Array) -> Self {
 		Value::Array(v)
 	}
 }
 
-impl<'a> From<Object<'a>> for Value<'a> {
+impl<'a> From<Object<'a>> for CowValue<'a> {
 	fn from(v: Object) -> Self {
 		Value::Object(v)
 	}
 }
 
-impl<'a> From<Number> for Value<'a> {
+impl<'a> From<Number> for CowValue<'a> {
 	fn from(v: Number) -> Self {
 		Value::Number(v)
 	}
 }
 
-impl<'a> From<Strand> for Value<'a> {
+impl<'a> From<Strand> for CowValue<'a> {
 	fn from(v: Strand) -> Self {
 		Value::Strand(v)
 	}
 }
 
-impl<'a> From<Geometry> for Value<'a> {
+impl<'a> From<Geometry> for CowValue<'a> {
 	fn from(v: Geometry) -> Self {
 		Value::Geometry(v)
 	}
 }
 
-impl<'a> From<Datetime> for Value<'a> {
+impl<'a> From<Datetime> for CowValue<'a> {
 	fn from(v: Datetime) -> Self {
 		Value::Datetime(v)
 	}
 }
 
-impl<'a> From<Duration> for Value<'a> {
+impl<'a> From<Duration> for CowValue<'a> {
 	fn from(v: Duration) -> Self {
 		Value::Duration(v)
 	}
 }
 
-impl<'a> From<Constant> for Value<'a> {
+impl<'a> From<Constant> for CowValue<'a> {
 	fn from(v: Constant) -> Self {
 		Value::Constant(v)
 	}
 }
 
-impl<'a> From<Block> for Value<'a> {
+impl<'a> From<Block> for CowValue<'a> {
 	fn from(v: Block) -> Self {
 		Value::Block(Box::new(v))
 	}
 }
 
-impl<'a> From<Range> for Value<'a> {
+impl<'a> From<Range> for CowValue<'a> {
 	fn from(v: Range) -> Self {
 		Value::Range(Box::new(v))
 	}
 }
 
-impl<'a> From<Edges> for Value<'a> {
+impl<'a> From<Edges> for CowValue<'a> {
 	fn from(v: Edges) -> Self {
 		Value::Edges(Box::new(v))
 	}
 }
 
-impl<'a> From<Future> for Value<'a> {
+impl<'a> From<Future> for CowValue<'a> {
 	fn from(v: Future) -> Self {
 		Value::Future(Box::new(v))
 	}
 }
 
-impl<'a> From<Cast> for Value<'a> {
+impl<'a> From<Cast> for CowValue<'a> {
 	fn from(v: Cast) -> Self {
 		Value::Cast(Box::new(v))
 	}
 }
 
-impl<'a> From<Function> for Value<'a> {
+impl<'a> From<Function> for CowValue<'a> {
 	fn from(v: Function) -> Self {
 		Value::Function(Box::new(v))
 	}
 }
 
-impl<'a> From<Model> for Value<'a> {
+impl<'a> From<Model> for CowValue<'a> {
 	fn from(v: Model) -> Self {
 		Value::MlModel(Box::new(v))
 	}
 }
 
-impl<'a> From<Subquery> for Value<'a> {
+impl<'a> From<Subquery> for CowValue<'a> {
 	fn from(v: Subquery) -> Self {
 		Value::Subquery(Box::new(v))
 	}
 }
 
-impl<'a> From<Expression> for Value<'a> {
+impl<'a> From<Expression> for CowValue<'a> {
 	fn from(v: Expression) -> Self {
 		Value::Expression(Box::new(v))
 	}
 }
 
-impl<'a> From<Box<Edges>> for Value<'a> {
+impl<'a> From<Box<Edges>> for CowValue<'a> {
 	fn from(v: Box<Edges>) -> Self {
 		Value::Edges(v)
 	}
 }
 
-impl<'a> From<i8> for Value<'a> {
+impl<'a> From<i8> for CowValue<'a> {
 	fn from(v: i8) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<i16> for Value<'a> {
+impl<'a> From<i16> for CowValue<'a> {
 	fn from(v: i16) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<i32> for Value<'a> {
+impl<'a> From<i32> for CowValue<'a> {
 	fn from(v: i32) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<i64> for Value<'a> {
+impl<'a> From<i64> for CowValue<'a> {
 	fn from(v: i64) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<i128> for Value<'a> {
+impl<'a> From<i128> for CowValue<'a> {
 	fn from(v: i128) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<isize> for Value<'a> {
+impl<'a> From<isize> for CowValue<'a> {
 	fn from(v: isize) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<u8> for Value<'a> {
+impl<'a> From<u8> for CowValue<'a> {
 	fn from(v: u8) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<u16> for Value<'a> {
+impl<'a> From<u16> for CowValue<'a> {
 	fn from(v: u16) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<u32> for Value<'a> {
+impl<'a> From<u32> for CowValue<'a> {
 	fn from(v: u32) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<u64> for Value<'a> {
+impl<'a> From<u64> for CowValue<'a> {
 	fn from(v: u64) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<u128> for Value<'a> {
+impl<'a> From<u128> for CowValue<'a> {
 	fn from(v: u128) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<usize> for Value<'a> {
+impl<'a> From<usize> for CowValue<'a> {
 	fn from(v: usize) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<f32> for Value<'a> {
+impl<'a> From<f32> for CowValue<'a> {
 	fn from(v: f32) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<f64> for Value<'a> {
+impl<'a> From<f64> for CowValue<'a> {
 	fn from(v: f64) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<Decimal> for Value<'a> {
+impl<'a> From<Decimal> for CowValue<'a> {
 	fn from(v: Decimal) -> Self {
 		Value::Number(Number::from(v))
 	}
 }
 
-impl<'a> From<String> for Value<'a> {
+impl<'a> From<String> for CowValue<'a> {
 	fn from(v: String) -> Self {
 		Self::Strand(Strand::from(v))
 	}
 }
 
-impl<'a> From<&str> for Value<'a> {
+impl<'a> From<&str> for CowValue<'a> {
 	fn from(v: &str) -> Self {
 		Self::Strand(Strand::from(v))
 	}
 }
 
-impl<'a> From<DateTime<Utc>> for Value<'a> {
+impl<'a> From<DateTime<Utc>> for CowValue<'a> {
 	fn from(v: DateTime<Utc>) -> Self {
 		Value::Datetime(Datetime::from(v))
 	}
 }
 
-impl<'a> From<(f64, f64)> for Value<'a> {
+impl<'a> From<(f64, f64)> for CowValue<'a> {
 	fn from(v: (f64, f64)) -> Self {
 		Value::Geometry(Geometry::from(v))
 	}
 }
 
-impl<'a> From<[f64; 2]> for Value<'a> {
+impl<'a> From<[f64; 2]> for CowValue<'a> {
 	fn from(v: [f64; 2]) -> Self {
 		Value::Geometry(Geometry::from(v))
 	}
 }
 
-impl<'a> From<Point<f64>> for Value<'a> {
+impl<'a> From<Point<f64>> for CowValue<'a> {
 	fn from(v: Point<f64>) -> Self {
 		Value::Geometry(Geometry::from(v))
 	}
 }
 
-impl<'a> From<Operation> for Value<'a> {
+impl<'a> From<Operation> for CowValue<'a> {
 	fn from(v: Operation) -> Self {
 		Value::Object(Object::from(v))
 	}
 }
 
-impl<'a> From<uuid::Uuid> for Value<'a> {
+impl<'a> From<uuid::Uuid> for CowValue<'a> {
 	fn from(v: uuid::Uuid) -> Self {
 		Value::Uuid(Uuid(v))
 	}
 }
 
-impl<'a> From<Vec<&str>> for Value<'a> {
+impl<'a> From<Vec<&str>> for CowValue<'a> {
 	fn from(v: Vec<&str>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<Vec<String>> for Value<'a> {
+impl<'a> From<Vec<String>> for CowValue<'a> {
 	fn from(v: Vec<String>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<Vec<i32>> for Value<'a> {
+impl<'a> From<Vec<i32>> for CowValue<'a> {
 	fn from(v: Vec<i32>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<Vec<Cow<'a, Value<'a>>>> for Value<'a> {
-	fn from(v: Vec<Cow<Value>>) -> Self {
-		Value::Array(Array::from(v))
-	}
-}
-impl<'a> From<Vec<Value<'a>>> for Value<'a> {
+impl<'a> From<Vec<CowValue<'a>>> for CowValue<'a> {
 	fn from(v: Vec<Value>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<Vec<Number>> for Value<'a> {
+impl<'a> From<Vec<Number>> for CowValue<'a> {
 	fn from(v: Vec<Number>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<Vec<Operation>> for Value<'a> {
+impl<'a> From<Vec<Operation>> for CowValue<'a> {
 	fn from(v: Vec<Operation>) -> Self {
 		Value::Array(Array::from(v))
 	}
 }
 
-impl<'a> From<HashMap<String, Value<'a>>> for Value<'a> {
+impl<'a> From<HashMap<String, CowValue<'a>>> for CowValue<'a> {
 	fn from(v: HashMap<String, Value>) -> Self {
 		Value::Object(Object::from(v))
 	}
 }
 
-impl<'a> From<BTreeMap<String, Value<'a>>> for Value<'a> {
+impl<'a> From<BTreeMap<String, CowValue<'a>>> for CowValue<'a> {
 	fn from(v: BTreeMap<String, Value>) -> Self {
 		Value::Object(Object::from(v))
 	}
 }
 
-impl<'a> From<Option<Value<'a>>> for Value<'a> {
+impl<'a> From<Option<CowValue<'a>>> for CowValue<'a> {
 	fn from(v: Option<Value>) -> Self {
 		match v {
 			Some(v) => v,
@@ -531,7 +495,7 @@ impl<'a> From<Option<Value<'a>>> for Value<'a> {
 	}
 }
 
-impl<'a> From<Option<String>> for Value<'a> {
+impl<'a> From<Option<String>> for CowValue<'a> {
 	fn from(v: Option<String>) -> Self {
 		match v {
 			Some(v) => Value::from(v),
@@ -540,7 +504,7 @@ impl<'a> From<Option<String>> for Value<'a> {
 	}
 }
 
-impl<'a> From<Id> for Value<'a> {
+impl<'a> From<Id> for CowValue<'a> {
 	fn from(v: Id) -> Self {
 		match v {
 			Id::Number(v) => v.into(),
@@ -556,7 +520,7 @@ impl<'a> From<Id> for Value<'a> {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for i8 {
+impl<'a> TryFrom<CowValue<'a>> for i8 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -566,7 +530,7 @@ impl<'a> TryFrom<Value<'a>> for i8 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for i16 {
+impl<'a> TryFrom<CowValue<'a>> for i16 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -576,7 +540,7 @@ impl<'a> TryFrom<Value<'a>> for i16 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for i32 {
+impl<'a> TryFrom<CowValue<'a>> for i32 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -586,7 +550,7 @@ impl<'a> TryFrom<Value<'a>> for i32 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for i64 {
+impl<'a> TryFrom<CowValue<'a>> for i64 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -596,7 +560,7 @@ impl<'a> TryFrom<Value<'a>> for i64 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for i128 {
+impl<'a> TryFrom<CowValue<'a>> for i128 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -606,7 +570,7 @@ impl<'a> TryFrom<Value<'a>> for i128 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for u8 {
+impl<'a> TryFrom<CowValue<'a>> for u8 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -616,7 +580,7 @@ impl<'a> TryFrom<Value<'a>> for u8 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for u16 {
+impl<'a> TryFrom<CowValue<'a>> for u16 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -626,7 +590,7 @@ impl<'a> TryFrom<Value<'a>> for u16 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for u32 {
+impl<'a> TryFrom<CowValue<'a>> for u32 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -636,7 +600,7 @@ impl<'a> TryFrom<Value<'a>> for u32 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for u64 {
+impl<'a> TryFrom<CowValue<'a>> for u64 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -646,7 +610,7 @@ impl<'a> TryFrom<Value<'a>> for u64 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for u128 {
+impl<'a> TryFrom<CowValue<'a>> for u128 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -656,7 +620,7 @@ impl<'a> TryFrom<Value<'a>> for u128 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for f32 {
+impl<'a> TryFrom<CowValue<'a>> for f32 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -666,7 +630,7 @@ impl<'a> TryFrom<Value<'a>> for f32 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for f64 {
+impl<'a> TryFrom<CowValue<'a>> for f64 {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -676,7 +640,7 @@ impl<'a> TryFrom<Value<'a>> for f64 {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for Decimal {
+impl<'a> TryFrom<CowValue<'a>> for Decimal {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -686,7 +650,7 @@ impl<'a> TryFrom<Value<'a>> for Decimal {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for String {
+impl<'a> TryFrom<CowValue<'a>> for String {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -696,7 +660,7 @@ impl<'a> TryFrom<Value<'a>> for String {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for bool {
+impl<'a> TryFrom<CowValue<'a>> for bool {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -706,7 +670,7 @@ impl<'a> TryFrom<Value<'a>> for bool {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for std::time::Duration {
+impl<'a> TryFrom<CowValue<'a>> for std::time::Duration {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -716,7 +680,7 @@ impl<'a> TryFrom<Value<'a>> for std::time::Duration {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for DateTime<Utc> {
+impl<'a> TryFrom<CowValue<'a>> for DateTime<Utc> {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -726,7 +690,7 @@ impl<'a> TryFrom<Value<'a>> for DateTime<Utc> {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for uuid::Uuid {
+impl<'a> TryFrom<CowValue<'a>> for uuid::Uuid {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -736,7 +700,7 @@ impl<'a> TryFrom<Value<'a>> for uuid::Uuid {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for Vec<Value<'a>> {
+impl<'a> TryFrom<CowValue<'a>> for Vec<CowValue<'a>> {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -746,7 +710,7 @@ impl<'a> TryFrom<Value<'a>> for Vec<Value<'a>> {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for Number {
+impl<'a> TryFrom<CowValue<'a>> for Number {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -756,7 +720,7 @@ impl<'a> TryFrom<Value<'a>> for Number {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for Datetime {
+impl<'a> TryFrom<CowValue<'a>> for Datetime {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -766,7 +730,7 @@ impl<'a> TryFrom<Value<'a>> for Datetime {
 	}
 }
 
-impl<'a> TryFrom<Value<'a>> for Object<'a> {
+impl<'a> TryFrom<CowValue<'a>> for Object<'a> {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
 		match value {
@@ -776,7 +740,7 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
 	}
 }
 
-impl<'a> Value<'a> {
+impl<'a> CowValue<'a> {
 	// -----------------------------------
 	// Initial record value
 	// -----------------------------------
@@ -791,12 +755,12 @@ impl<'a> Value<'a> {
 	// -----------------------------------
 
 	/// Convert this Value to a Result
-	pub fn ok(self) -> Result<Value, Error> {
+	pub fn ok(self) -> Result<CowValue<'a>, Error> {
 		Ok(self)
 	}
 
 	/// Convert this Value to an Option
-	pub fn some(self) -> Option<Value> {
+	pub fn some(self) -> Option<CowValue<'a>> {
 		match self {
 			Value::None => None,
 			val => Some(val),
@@ -1117,7 +1081,7 @@ impl<'a> Value<'a> {
 	// -----------------------------------
 
 	/// Treat a string as a table name
-	pub fn could_be_table(self) -> Value {
+	pub fn could_be_table(self) -> Value<'a> {
 		match self {
 			Value::Strand(v) => Table::from(v.0).into(),
 			_ => self,
@@ -1308,7 +1272,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to coerce this value to a `null`
-	pub(crate) fn coerce_to_null(self) -> Result<Value, Error> {
+	pub(crate) fn coerce_to_null(self) -> Result<Value<'a>, Error> {
 		match self {
 			// Allow any null value
 			Value::Null => Ok(Value::Null),
@@ -1516,7 +1480,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to coerce this value to an `Object`
-	pub(crate) fn coerce_to_object(self) -> Result<Object, Error> {
+	pub(crate) fn coerce_to_object(self) -> Result<Object<'a>, Error> {
 		match self {
 			// Objects are allowed
 			Value::Object(v) => Ok(v),
@@ -1529,7 +1493,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to coerce this value to an `Array`
-	pub(crate) fn coerce_to_array(self) -> Result<Array, Error> {
+	pub(crate) fn coerce_to_array(self) -> Result<Array<'a>, Error> {
 		match self {
 			// Arrays are allowed
 			Value::Array(v) => Ok(v),
@@ -1625,7 +1589,11 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to coerce this value to an `Array` of a certain type, and length
-	pub(crate) fn coerce_to_array_type_len(self, kind: &Kind, len: &u64) -> Result<Array, Error> {
+	pub(crate) fn coerce_to_array_type_len(
+		self,
+		kind: &Kind,
+		len: &u64,
+	) -> Result<Array<'a>, Error> {
 		self.coerce_to_array()?
 			.into_iter()
 			.map(|value| value.coerce_to(kind))
@@ -1669,7 +1637,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to coerce this value to an `Array` of a certain type, unique values, and length
-	pub(crate) fn coerce_to_set_type_len(self, kind: &Kind, len: &u64) -> Result<Array, Error> {
+	pub(crate) fn coerce_to_set_type_len(self, kind: &Kind, len: &u64) -> Result<Array<'a>, Error> {
 		self.coerce_to_array()?
 			.uniq()
 			.into_iter()
@@ -1772,7 +1740,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to convert this value to a `null`
-	pub(crate) fn convert_to_null(self) -> Result<Value, Error> {
+	pub(crate) fn convert_to_null(self) -> Result<Value<'a>, Error> {
 		match self {
 			// Allow any boolean value
 			Value::Null => Ok(Value::Null),
@@ -2080,7 +2048,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to convert this value to an `Object`
-	pub(crate) fn convert_to_object(self) -> Result<Object, Error> {
+	pub(crate) fn convert_to_object(self) -> Result<Object<'a>, Error> {
 		match self {
 			// Objects are allowed
 			Value::Object(v) => Ok(v),
@@ -2093,7 +2061,7 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to convert this value to an `Array`
-	pub(crate) fn convert_to_array(self) -> Result<Array, Error> {
+	pub(crate) fn convert_to_array(self) -> Result<Array<'a>, Error> {
 		match self {
 			// Arrays are allowed
 			Value::Array(v) => Ok(v),
@@ -2199,7 +2167,11 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to convert this value to ab `Array` of a certain type and length
-	pub(crate) fn convert_to_array_type_len(self, kind: &Kind, len: &u64) -> Result<Array, Error> {
+	pub(crate) fn convert_to_array_type_len(
+		self,
+		kind: &Kind,
+		len: &u64,
+	) -> Result<Array<'a>, Error> {
 		self.convert_to_array()?
 			.into_iter()
 			.map(|value| value.convert_to(kind))
@@ -2243,7 +2215,11 @@ impl<'a> Value<'a> {
 	}
 
 	/// Try to convert this value to an `Array` of a certain type, unique values, and length
-	pub(crate) fn convert_to_set_type_len(self, kind: &Kind, len: &u64) -> Result<Array, Error> {
+	pub(crate) fn convert_to_set_type_len(
+		self,
+		kind: &Kind,
+		len: &u64,
+	) -> Result<Array<'a>, Error> {
 		self.convert_to_array()?
 			.uniq()
 			.into_iter()
@@ -2525,7 +2501,7 @@ impl<'a> Value<'a> {
 	}
 }
 
-impl fmt::Display for Value {
+impl fmt::Display for CowValue<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let mut f = Pretty::from(f);
 		match self {
@@ -2562,7 +2538,7 @@ impl fmt::Display for Value {
 	}
 }
 
-impl Value {
+impl<'a> CowValue<'a> {
 	/// Check if we require a writeable transaction
 	pub(crate) fn writeable(&self) -> bool {
 		match self {
@@ -2619,7 +2595,7 @@ pub(crate) trait TryAdd<Rhs = Self> {
 	fn try_add(self, rhs: Rhs) -> Result<Self::Output, Error>;
 }
 
-impl TryAdd for Value {
+impl<'a> TryAdd for CowValue<'a> {
 	type Output = Self;
 	fn try_add(self, other: Self) -> Result<Self, Error> {
 		Ok(match (self, other) {
@@ -2640,7 +2616,7 @@ pub(crate) trait TrySub<Rhs = Self> {
 	fn try_sub(self, v: Self) -> Result<Self::Output, Error>;
 }
 
-impl TrySub for Value {
+impl<'a> TrySub for CowValue<'a> {
 	type Output = Self;
 	fn try_sub(self, other: Self) -> Result<Self, Error> {
 		Ok(match (self, other) {
@@ -2661,7 +2637,7 @@ pub(crate) trait TryMul<Rhs = Self> {
 	fn try_mul(self, v: Self) -> Result<Self::Output, Error>;
 }
 
-impl TryMul for Value {
+impl<'a> TryMul for CowValue<'a> {
 	type Output = Self;
 	fn try_mul(self, other: Self) -> Result<Self, Error> {
 		Ok(match (self, other) {
@@ -2678,7 +2654,7 @@ pub(crate) trait TryDiv<Rhs = Self> {
 	fn try_div(self, v: Self) -> Result<Self::Output, Error>;
 }
 
-impl TryDiv for Value {
+impl<'a> TryDiv for CowValue<'a> {
 	type Output = Self;
 	fn try_div(self, other: Self) -> Result<Self, Error> {
 		Ok(match (self, other) {
@@ -2695,7 +2671,7 @@ pub(crate) trait TryPow<Rhs = Self> {
 	fn try_pow(self, v: Self) -> Result<Self::Output, Error>;
 }
 
-impl TryPow for Value {
+impl<'a> TryPow for CowValue<'a> {
 	type Output = Self;
 	fn try_pow(self, other: Self) -> Result<Self, Error> {
 		Ok(match (self, other) {
@@ -2712,7 +2688,7 @@ pub(crate) trait TryNeg<Rhs = Self> {
 	fn try_neg(self) -> Result<Self::Output, Error>;
 }
 
-impl TryNeg for Value {
+impl<'a> TryNeg for CowValue<'a> {
 	type Output = Self;
 	fn try_neg(self) -> Result<Self, Error> {
 		Ok(match self {

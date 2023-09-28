@@ -7,7 +7,7 @@ use crate::sql::error::IResult;
 use crate::sql::fmt::{pretty_indent, Fmt, Pretty};
 use crate::sql::number::Number;
 use crate::sql::operation::Operation;
-use crate::sql::value::{value, Value};
+use crate::sql::value::{CowValue, value, Value};
 use nom::character::complete::char;
 use nom::sequence::terminated;
 use revision::revisioned;
@@ -28,7 +28,7 @@ pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Array";
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, Hash)]
 #[serde(rename = "$surrealdb::private::sql::Array")]
 #[revisioned(revision = 1)]
-pub struct Array<'a>(pub Vec<Cow<'a, Value>>);
+pub struct Array<'a>(pub Vec<CowValue<'a>>);
 
 impl FromIterator<Value> for Vec<Cow<'_, Value>> {
 	fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
@@ -43,14 +43,14 @@ impl From<Value> for Array<'_> {
 }
 
 impl<'a> From<Vec<Cow<'a, Value>>> for Array<'a> {
-	fn from(v: Vec<Cow<Value>>) -> Self {
+	fn from(v: Vec<CowValue>) -> Self {
 		Self(v)
 	}
 }
 
 impl From<Vec<Value>> for Array<'_> {
 	fn from(v: Vec<Value>) -> Self {
-		Self(v.into_iter().map(|v| Cow::Owned(v)).collect())
+		Self(v.into_iter().map(|v| v.into()).collect())
 	}
 }
 
@@ -90,7 +90,7 @@ impl From<Vec<Operation>> for Array<'_> {
 	}
 }
 
-impl<'a> From<Array<'a>> for Vec<Cow<'a, Value>> {
+impl<'a> From<Array<'a>> for Vec<CowValue<'a>> {
 	fn from(s: Array) -> Self {
 		s.0
 	}
@@ -103,7 +103,7 @@ impl FromIterator<Value> for Array<'_> {
 }
 
 impl<'a> Deref for Array<'a> {
-	type Target = Vec<Cow<'a, Value>>;
+	type Target = Vec<CowValue<'a>>;
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
@@ -116,7 +116,7 @@ impl<'a> DerefMut for Array<'a> {
 }
 
 impl<'a> IntoIterator for Array<'a> {
-	type Item = Cow<'a, Value>;
+	type Item = CowValue<'a>;
 	type IntoIter = std::vec::IntoIter<Self::Item>;
 	fn into_iter(self) -> Self::IntoIter {
 		self.0.into_iter()
@@ -184,7 +184,7 @@ impl<'a> Display for Array<'a> {
 
 impl<'a> ops::Add<Cow<'a, Value>> for Array<'a> {
 	type Output = Self;
-	fn add(mut self, other: Cow<Value>) -> Self {
+	fn add(mut self, other: CowValue<'a>) -> Self {
 		self.0.push(other);
 		self
 	}
@@ -193,7 +193,7 @@ impl<'a> ops::Add<Cow<'a, Value>> for Array<'a> {
 impl<'a> ops::Add<Value> for Array<'a> {
 	type Output = Self;
 	fn add(mut self, other: Value) -> Self {
-		self.0.push(Cow::Owned(other));
+		self.0.push(other.into());
 		self
 	}
 }
@@ -208,9 +208,9 @@ impl<'a> ops::Add for Array<'a> {
 
 // ------------------------------
 
-impl<'a> ops::Sub<Cow<'a, Value>> for Array<'a> {
+impl<'a> ops::Sub<CowValue<'a>> for Array<'a> {
 	type Output = Self;
-	fn sub(mut self, other: Cow<Value>) -> Self {
+	fn sub(mut self, other: CowValue<'a>) -> Self {
 		if let Some(p) = self.0.iter().position(|x| *x == other) {
 			self.0.remove(p);
 		}
@@ -291,7 +291,7 @@ impl<'a> Combine<Array<'a>> for Array<'a> {
 		let mut out = Self::with_capacity(self.len().saturating_mul(other.len()));
 		for a in self.iter() {
 			for b in other.iter() {
-				out.push(Cow::Owned(vec![*a, *b].into()));
+				out.push(vec![*a, *b].into());
 			}
 		}
 		out
@@ -402,8 +402,8 @@ pub(crate) trait Matches<C, T> {
 	fn matches(self, compare_val: C) -> T;
 }
 
-impl<'a> Matches<Cow<'a, Value>, Array<'a>> for Array<'a> {
-	fn matches(self, compare_val: Cow<Value>) -> Array<'a> {
+impl<'a> Matches<CowValue<'a>, Array<'a>> for Array<'a> {
+	fn matches(self, compare_val: CowValue<'a> ) -> Array<'a> {
 		self.iter().map(|arr_val| (*arr_val == compare_val).into()).collect::<Vec<Value>>().into()
 	}
 }
@@ -465,10 +465,10 @@ impl<'a> Transpose<Array<'a>> for Array<'a> {
 		let mut iters = self
 			.iter()
 			.map(|v| {
-				if let Value::Array(arr) = **v {
-					Box::new(arr.into_iter()) as Box<dyn ExactSizeIterator<Item = Cow<Value>>>
+				if let Value::Array(arr) = v {
+					Box::new(arr.into_iter()) as Box<dyn ExactSizeIterator<Item = CowValue<'a>>>
 				} else {
-					Box::new(std::iter::once(*v)) as Box<dyn ExactSizeIterator<Item = Cow<Value>>>
+					Box::new(std::iter::once(v)) as Box<dyn ExactSizeIterator<Item = CowValue<'a>>>
 				}
 			})
 			.collect::<Vec<_>>();

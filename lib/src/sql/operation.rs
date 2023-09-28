@@ -1,5 +1,5 @@
 use crate::sql::idiom::Idiom;
-use crate::sql::value::Value;
+use crate::sql::value::{CowValue, Value};
 use revision::revisioned;
 use serde::{Deserialize, Serialize};
 
@@ -7,21 +7,21 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "op")]
 #[serde(rename_all = "lowercase")]
 #[revisioned(revision = 1)]
-pub enum Operation {
+pub enum Operation<'a> {
 	Add {
 		path: Idiom,
-		value: Value,
+		value: CowValue<'a>,
 	},
 	Remove {
 		path: Idiom,
 	},
 	Replace {
 		path: Idiom,
-		value: Value,
+		value: CowValue<'a>,
 	},
 	Change {
 		path: Idiom,
-		value: Value,
+		value: CowValue<'a>,
 	},
 	Copy {
 		path: Idiom,
@@ -33,6 +33,6 @@ pub enum Operation {
 	},
 	Test {
 		path: Idiom,
-		value: Value,
+		value: CowValue<'a>,
 	},
 }

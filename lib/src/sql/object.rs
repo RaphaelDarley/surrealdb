@@ -11,7 +11,7 @@ use crate::sql::fmt::{is_pretty, pretty_indent, Fmt, Pretty};
 use crate::sql::operation::Operation;
 use crate::sql::thing::Thing;
 use crate::sql::util::expect_terminator;
-use crate::sql::value::{value, Value};
+use crate::sql::value::{value, CowValue, Value};
 use nom::branch::alt;
 use nom::bytes::complete::is_not;
 use nom::bytes::complete::take_while1;
@@ -34,33 +34,48 @@ pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Object";
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, Hash)]
 #[serde(rename = "$surrealdb::private::sql::Object")]
 #[revisioned(revision = 1)]
-pub struct Object<'a>(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<String, Cow<'a, Value>>);
+pub struct Object<'a>(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<String, CowValue<'a>>);
 
-impl From<BTreeMap<String, Value>> for Object {
-	fn from(v: BTreeMap<String, Value>) -> Self {
+impl<'a> From<BTreeMap<String, CowValue<'a>>> for Object<'a> {
+	fn from(v: BTreeMap<String, CowValue<'a>>) -> Self {
 		Self(v)
 	}
 }
+impl<'a> From<BTreeMap<String, Value<'a>>> for Object<'a> {
+	fn from(v: BTreeMap<String, Value>) -> Self {
+		Self(v.into_iter().map(|(key, val)| (key, val.into())).collect())
+	}
+}
 
-impl From<HashMap<&str, Value>> for Object {
-	fn from(v: HashMap<&str, Value>) -> Self {
+impl<'a> From<HashMap<&str, CowValue<'a>>> for Object<'a> {
+	fn from(v: HashMap<&str, CowValue<'a>>) -> Self {
 		Self(v.into_iter().map(|(key, val)| (key.to_string(), val)).collect())
 	}
 }
-
-impl From<HashMap<String, Value>> for Object {
-	fn from(v: HashMap<String, Value>) -> Self {
-		Self(v.into_iter().collect())
+impl<'a> From<HashMap<&str, Value<'a>>> for Object<'a> {
+	fn from(v: HashMap<&str, Value>) -> Self {
+		Self(v.into_iter().map(|(key, val)| (key.to_string(), Cow::Owned(val))).collect())
 	}
 }
 
-impl From<Option<Self>> for Object {
+impl<'a> From<HashMap<String, CowValue<'a>>> for Object<'a> {
+	fn from(v: HashMap<String, CowValue<'a>>) -> Self {
+		Self(v.into_iter().collect())
+	}
+}
+impl<'a> From<HashMap<String, Value>> for Object<'a> {
+	fn from(v: HashMap<String, Value>) -> Self {
+		Self(v.into_iter().map(|(key, val)| (key, Cow::Owned(val))).collect())
+	}
+}
+
+impl<'a> From<Option<Self>> for Object<'a> {
 	fn from(v: Option<Self>) -> Self {
 		v.unwrap_or_default()
 	}
 }
 
-impl From<Operation> for Object {
+impl<'a> From<Operation> for Object<'a> {
 	fn from(v: Operation) -> Self {
 		Self(match v {
 			Operation::Add {
@@ -121,8 +136,8 @@ impl From<Operation> for Object {
 	}
 }
 
-impl Deref for Object {
-	type Target = BTreeMap<String, Value>;
+impl<'a> Deref for Object<'a> {
+	type Target = BTreeMap<String, CowValue<'a>>;
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
@@ -134,9 +149,9 @@ impl DerefMut for Object {
 	}
 }
 
-impl IntoIterator for Object {
-	type Item = (String, Value);
-	type IntoIter = std::collections::btree_map::IntoIter<String, Value>;
+impl<'a> IntoIterator for Object<'a> {
+	type Item = (String, CowValue<'a>);
+	type IntoIter = std::collections::btree_map::IntoIter<String, CowValue<'a>>;
 	fn into_iter(self) -> Self::IntoIter {
 		self.0.into_iter()
 	}

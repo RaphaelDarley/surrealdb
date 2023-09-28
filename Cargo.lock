@@ -4262,8 +4262,7 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 [[package]]
 name = "revision"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87eb86913082f8976b06d07a59f17df9120e6f38b882cf3fc5a45b4499e224b6"
+source = "git+https://github.com/surrealdb/revision#5801e981a54e66c15684477731c403c6155cd64c"
 dependencies = [
  "bincode",
  "chrono",
@@ -4280,8 +4279,7 @@ dependencies = [
 [[package]]
 name = "revision-derive"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf996fc5f61f1dbec35799b5c00c6dda12e8862e8cb782ed24e10d0292e60ed3"
+source = "git+https://github.com/surrealdb/revision#5801e981a54e66c15684477731c403c6155cd64c"
 dependencies = [
  "darling",
  "proc-macro-error",
