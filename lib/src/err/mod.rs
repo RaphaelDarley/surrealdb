@@ -207,6 +207,12 @@ pub enum Error {
 		name: String,
 		message: String,
 	},
+	/// There was a problem running the specified plugin
+	#[error("There was a problem running the {name} plugin. {message}")]
+	InvalidPlugin {
+		name: String,
+		message: String,
+	},
 
 	/// The wrong quantity or magnitude of arguments was given for the specified function
 	#[error("Incorrect arguments for function {name}(). {message}")]

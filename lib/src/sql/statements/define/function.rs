@@ -17,9 +17,32 @@ use std::fmt::{self, Display, Write};
 pub struct DefineFunctionStatement {
 	pub name: Ident,
 	pub args: Vec<(Ident, Kind)>,
+	// #[revision(end = 2, convert_fn = "convert_to_plugin")]
 	pub block: Block,
+	// #[revision(start = 2)]
+	// pub body: Body,
 	pub comment: Option<Strand>,
 	pub permissions: Permission,
+}
+
+// impl DefineFunctionStatement {
+// 	fn convert_to_plugin(&mut self, revision: u16, value: Block) -> Result<(), revision::Error> {
+// 		self.body = Body::Block(self.block.clone());
+// 		Ok(())
+// 	}
+// }
+
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Serialize, Deserialize, Store, Hash)]
+#[revisioned(revision = 1)]
+pub enum Body {
+	Block(Block),
+	Wasm(String),
+}
+
+impl Default for Body {
+	fn default() -> Self {
+		Body::Block(Block::default())
+	}
 }
 
 impl DefineFunctionStatement {

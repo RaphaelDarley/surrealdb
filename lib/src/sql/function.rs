@@ -16,18 +16,22 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
 
+use extism::*;
+
 use super::Kind;
 
 pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Function";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(rename = "$surrealdb::private::sql::Function")]
-#[revisioned(revision = 1)]
+#[revisioned(revision = 2)]
 pub enum Function {
 	Normal(String, Vec<Value>),
 	Custom(String, Vec<Value>),
 	Script(Script, Vec<Value>),
 	// Add new variants here
+	#[revision(start = 2)]
+	Wasm(String, Vec<Value>),
 }
 
 impl PartialOrd for Function {
@@ -60,6 +64,7 @@ impl Function {
 			Self::Script(_, _) => "function".to_string().into(),
 			Self::Normal(f, _) => f.to_owned().into(),
 			Self::Custom(f, _) => format!("fn::{f}").into(),
+			Self::Wasm(f, _) => format!("wasm::{f}").into(),
 		}
 	}
 	/// Convert this function to an aggregate
@@ -248,6 +253,34 @@ impl Function {
 					})
 				}
 			}
+			Self::Wasm(s, x) => {
+				let url = Wasm::url(format!(
+					"https://github.com/extism/plugins/releases/latest/download/{s}.wasm"
+				));
+				let manifest = Manifest::new([url]);
+				let mut plugin =
+					Plugin::new(&manifest, [], true).map_err(|e| Error::InvalidPlugin {
+						name: s.clone(),
+						message: format!("{}", e),
+					})?;
+
+				let Some(arg) = x.get(0).map(|v| v.clone().coerce_to_string().ok()).flatten()
+				else {
+					return Err(Error::InvalidArguments {
+						name: s.to_owned(),
+						message: "".to_string(),
+					});
+				};
+
+				let res = plugin.call::<&str, &str>("count_vowels", &arg).map_err(|e| {
+					Error::InvalidPlugin {
+						name: s.clone(),
+						message: e.to_string(),
+					}
+				})?;
+
+				Ok(Value::Strand(res.into()))
+			}
 		}
 	}
 }
@@ -258,6 +291,7 @@ impl fmt::Display for Function {
 			Self::Normal(s, e) => write!(f, "{s}({})", Fmt::comma_separated(e)),
 			Self::Custom(s, e) => write!(f, "fn::{s}({})", Fmt::comma_separated(e)),
 			Self::Script(s, e) => write!(f, "function({}) {{{s}}}", Fmt::comma_separated(e)),
+			Self::Wasm(s, e) => write!(f, "wasm::{s}({})", Fmt::comma_separated(e)),
 		}
 	}
 }
