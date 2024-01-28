@@ -23,6 +23,8 @@ mod speedb;
 mod tikv;
 mod tx;
 
+mod repository;
+
 mod clock;
 #[cfg(test)]
 #[cfg(any(
