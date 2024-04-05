@@ -21,6 +21,11 @@ pub const PROTOCOLS: [&str; 5] = [
 	"revision", // For full versioned serialisation
 ];
 
+pub enum DataWrapper {
+	Text(String),
+	Binary(Vec<u8>),
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Format {
 	None,        // No format is specified yet
