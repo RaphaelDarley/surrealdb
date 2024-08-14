@@ -14,7 +14,7 @@ use crate::sql::{
 	model::Model,
 	Array, Block, Bytes, Cast, Constant, Datetime, Duration, Edges, Expression, Function, Future,
 	Geometry, Idiom, Kind, Mock, Number, Object, Operation, Param, Part, Query, Range, Regex,
-	Strand, Subquery, Table, Tables, Thing, Uuid,
+	Specialized, Strand, Subquery, Table, Tables, Thing, Uuid,
 };
 use chrono::{DateTime, Utc};
 use derive::Store;
@@ -122,6 +122,7 @@ pub enum Value {
 	Query(Query),
 	Model(Box<Model>),
 	Closure(Box<Closure>),
+	Specialized(Specialized),
 	// Add new variants here
 }
 
@@ -2675,6 +2676,7 @@ impl fmt::Display for Value {
 			Value::Thing(v) => write!(f, "{v}"),
 			Value::Uuid(v) => write!(f, "{v}"),
 			Value::Closure(v) => write!(f, "{v}"),
+			Value::Specialized(_) => write!(f, "todo"),
 		}
 	}
 }

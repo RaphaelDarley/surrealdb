@@ -48,7 +48,8 @@ impl<'a> KnnConditionRewriter<'a> {
 			| Value::Mock(_)
 			| Value::Regex(_)
 			| Value::Constant(_)
-			| Value::Closure(_) => Some(v.clone()),
+			| Value::Closure(_)
+			| Value::Specialized(_) => Some(v.clone()),
 		}
 	}
 
