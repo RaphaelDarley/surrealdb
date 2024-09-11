@@ -5,6 +5,8 @@ use crate::err::Error;
 use crate::iam::Action;
 use crate::iam::ResourceKind;
 use crate::sql::{Base, Ident, Object, Value, Version};
+use compact_str::CompactString;
+use compact_str::ToCompactString;
 use derive::Store;
 use revision::revisioned;
 use serde::{Deserialize, Serialize};
@@ -55,37 +57,37 @@ impl InfoStatement {
 				// Create the result set
 				Ok(match structured {
 					true => Value::from(map! {
-						"accesses".to_string() => process(txn.all_root_accesses().await?.iter().map(|v| v.redacted()).collect()),
-						"namespaces".to_string() => process(txn.all_ns().await?),
-						"nodes".to_string() => process(txn.all_nodes().await?),
-						"users".to_string() => process(txn.all_root_users().await?),
+						"accesses" => process(txn.all_root_accesses().await?.iter().map(|v| v.redacted()).collect()),
+						"namespaces" => process(txn.all_ns().await?),
+						"nodes" => process(txn.all_nodes().await?),
+						"users" => process(txn.all_root_users().await?),
 					}),
 					false => Value::from(map! {
-						"accesses".to_string() => {
+						"accesses" => {
 							let mut out = Object::default();
 							for v in txn.all_root_accesses().await?.iter().map(|v| v.redacted()) {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"namespaces".to_string() => {
+						"namespaces" => {
 							let mut out = Object::default();
 							for v in txn.all_ns().await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"nodes".to_string() => {
+						"nodes" => {
 							let mut out = Object::default();
 							for v in txn.all_nodes().await?.iter() {
-								out.insert(v.id.to_string(), v.to_string().into());
+								out.insert(v.id.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"users".to_string() => {
+						"users" => {
 							let mut out = Object::default();
 							for v in txn.all_root_users().await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
@@ -102,29 +104,29 @@ impl InfoStatement {
 				// Create the result set
 				Ok(match structured {
 					true => Value::from(map! {
-						"accesses".to_string() => process(txn.all_ns_accesses(ns).await?.iter().map(|v| v.redacted()).collect()),
-						"databases".to_string() => process(txn.all_db(ns).await?),
-						"users".to_string() => process(txn.all_ns_users(ns).await?),
+						"accesses" => process(txn.all_ns_accesses(ns).await?.iter().map(|v| v.redacted()).collect()),
+						"databases" => process(txn.all_db(ns).await?),
+						"users" => process(txn.all_ns_users(ns).await?),
 					}),
 					false => Value::from(map! {
-						"accesses".to_string() => {
+						"accesses" => {
 							let mut out = Object::default();
 							for v in txn.all_ns_accesses(ns).await?.iter().map(|v| v.redacted()) {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"databases".to_string() => {
+						"databases" => {
 							let mut out = Object::default();
 							for v in txn.all_db(ns).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"users".to_string() => {
+						"users" => {
 							let mut out = Object::default();
 							for v in txn.all_ns_users(ns).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
@@ -144,61 +146,61 @@ impl InfoStatement {
 				// Create the result set
 				Ok(match structured {
 					true => Value::from(map! {
-						"accesses".to_string() => process(txn.all_db_accesses(ns, db).await?.iter().map(|v| v.redacted()).collect()),
-						"analyzers".to_string() => process(txn.all_db_analyzers(ns, db).await?),
-						"functions".to_string() => process(txn.all_db_functions(ns, db).await?),
-						"models".to_string() => process(txn.all_db_models(ns, db).await?),
-						"params".to_string() => process(txn.all_db_params(ns, db).await?),
-						"tables".to_string() => process(txn.all_tb(ns, db, version).await?),
-						"users".to_string() => process(txn.all_db_users(ns, db).await?),
+						"accesses" => process(txn.all_db_accesses(ns, db).await?.iter().map(|v| v.redacted()).collect()),
+						"analyzers" => process(txn.all_db_analyzers(ns, db).await?),
+						"functions" => process(txn.all_db_functions(ns, db).await?),
+						"models" => process(txn.all_db_models(ns, db).await?),
+						"params" => process(txn.all_db_params(ns, db).await?),
+						"tables" => process(txn.all_tb(ns, db, version).await?),
+						"users" => process(txn.all_db_users(ns, db).await?),
 					}),
 					false => Value::from(map! {
-						"accesses".to_string() => {
+						"accesses" => {
 							let mut out = Object::default();
 							for v in txn.all_db_accesses(ns, db).await?.iter().map(|v| v.redacted()) {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"analyzers".to_string() => {
+						"analyzers" => {
 							let mut out = Object::default();
 							for v in txn.all_db_analyzers(ns, db).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"functions".to_string() => {
+						"functions" => {
 							let mut out = Object::default();
 							for v in txn.all_db_functions(ns, db).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"models".to_string() => {
+						"models" => {
 							let mut out = Object::default();
 							for v in txn.all_db_models(ns, db).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"params".to_string() => {
+						"params" => {
 							let mut out = Object::default();
 							for v in txn.all_db_params(ns, db).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"tables".to_string() => {
+						"tables" => {
 							let mut out = Object::default();
 							for v in txn.all_tb(ns, db, version).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"users".to_string() => {
+						"users" => {
 							let mut out = Object::default();
 							for v in txn.all_db_users(ns, db).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
@@ -218,45 +220,45 @@ impl InfoStatement {
 				// Create the result set
 				Ok(match structured {
 					true => Value::from(map! {
-						"events".to_string() => process(txn.all_tb_events(ns, db, tb).await?),
-						"fields".to_string() => process(txn.all_tb_fields(ns, db, tb, version).await?),
-						"indexes".to_string() => process(txn.all_tb_indexes(ns, db, tb).await?),
-						"lives".to_string() => process(txn.all_tb_lives(ns, db, tb).await?),
-						"tables".to_string() => process(txn.all_tb_views(ns, db, tb).await?),
+						"events" => process(txn.all_tb_events(ns, db, tb).await?),
+						"fields" => process(txn.all_tb_fields(ns, db, tb, version).await?),
+						"indexes" => process(txn.all_tb_indexes(ns, db, tb).await?),
+						"lives" => process(txn.all_tb_lives(ns, db, tb).await?),
+						"tables" => process(txn.all_tb_views(ns, db, tb).await?),
 					}),
 					false => Value::from(map! {
-						"events".to_string() => {
+						"events" => {
 							let mut out = Object::default();
 							for v in txn.all_tb_events(ns, db, tb).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"fields".to_string() => {
+						"fields" => {
 							let mut out = Object::default();
 							for v in txn.all_tb_fields(ns, db, tb, version).await?.iter() {
-								out.insert(v.name.to_string(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"indexes".to_string() => {
+						"indexes" => {
 							let mut out = Object::default();
 							for v in txn.all_tb_indexes(ns, db, tb).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"lives".to_string() => {
+						"lives" => {
 							let mut out = Object::default();
 							for v in txn.all_tb_lives(ns, db, tb).await?.iter() {
-								out.insert(v.id.to_raw(), v.to_string().into());
+								out.insert(v.id.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
-						"tables".to_string() => {
+						"tables" => {
 							let mut out = Object::default();
 							for v in txn.all_tb_views(ns, db, tb).await?.iter() {
-								out.insert(v.name.to_raw(), v.to_string().into());
+								out.insert(v.name.to_compact_string(), v.to_string().into());
 							}
 							out.into()
 						},
@@ -295,7 +297,7 @@ impl InfoStatement {
 					let res = txn.get_tb_index(opt.ns()?, opt.db()?, table, index).await?;
 					if let Some(status) = ib.get_status(&res).await {
 						let mut out = Object::default();
-						out.insert("building".to_string(), status.into());
+						out.insert(CompactString::const_new("building"), status.into());
 						return Ok(out.into());
 					}
 				}

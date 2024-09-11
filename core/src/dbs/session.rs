@@ -95,15 +95,15 @@ impl Session {
 		ctx.add_value("token", val.into());
 		// Add session value
 		let val: Value = Value::from(map! {
-			"ac".to_string() => self.ac.to_owned().into(),
-			"exp".to_string() => self.exp.to_owned().into(),
-			"db".to_string() => self.db.to_owned().into(),
-			"id".to_string() => self.id.to_owned().into(),
-			"ip".to_string() => self.ip.to_owned().into(),
-			"ns".to_string() => self.ns.to_owned().into(),
-			"or".to_string() => self.or.to_owned().into(),
-			"rd".to_string() => self.rd.to_owned().into(),
-			"tk".to_string() => self.tk.to_owned().into(),
+			"ac" => self.ac.to_owned().into(),
+			"exp" => self.exp.to_owned().into(),
+			"db" => self.db.to_owned().into(),
+			"id" => self.id.to_owned().into(),
+			"ip" => self.ip.to_owned().into(),
+			"ns" => self.ns.to_owned().into(),
+			"or" => self.or.to_owned().into(),
+			"rd" => self.rd.to_owned().into(),
+			"tk" => self.tk.to_owned().into(),
 		});
 		ctx.add_value("session", val.into());
 	}

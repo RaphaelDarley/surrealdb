@@ -460,15 +460,15 @@ mod tests {
 		// Now read the change feed
 		let tx = ds.transaction(Write, Optimistic).await.unwrap();
 		let r = change_feed_ts(tx, &ts).await;
-		let expected_obj_first = Value::Object(Object::from(map! {
-			"id".to_string() => Value::Thing(thing.clone()),
-			"value".to_string() => Value::Number(Number::Int(50)),
-		}));
-		let expected_obj_second = Value::Object(Object::from(map! {
-			"id".to_string() => Value::Thing(thing.clone()),
-			"value".to_string() => Value::Number(Number::Int(100)),
-			"new_field".to_string() => Value::Strand(Strand::from("new_value")),
-		}));
+		let expected_obj_first = Value::from(map! {
+			"id"=> Value::Thing(thing.clone()),
+			"value" => Value::Number(Number::Int(50)),
+		});
+		let expected_obj_second = Value::from(map! {
+			"id" => Value::Thing(thing.clone()),
+			"value" => Value::Number(Number::Int(100)),
+			"new_field" => Value::Strand(Strand::from("new_value")),
+		});
 		assert_eq!(r.len(), 2, "{:?}", r);
 		let expected: Vec<ChangeSet> = vec![
 			ChangeSet(

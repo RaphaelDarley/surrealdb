@@ -40,9 +40,9 @@ pub struct Notification {
 impl Display for Notification {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let obj: Object = map! {
-			"id".to_string() => self.id.to_string().into(),
-			"action".to_string() => self.action.to_string().into(),
-			"result".to_string() => self.result.clone(),
+			"id" => self.id.to_string().into(),
+			"action" => self.action.to_string().into(),
+			"result" => self.result.clone(),
 		}
 		.into();
 		write!(f, "{}", obj)

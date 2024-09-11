@@ -122,13 +122,8 @@ reqwest = { version = "0.12.7", default-features = false, features = [
     "stream",
     "multipart",
 ], optional = true }
-revision = { version = "0.10.0", features = [
-    "chrono",
-    "geo",
-    "roaring",
-    "regex",
-    "rust_decimal",
-    "uuid",
+revision = { path = "../../revision", features = [
+    "compact_str"
 ] }
 rmpv = "1.0.1"
 roaring = { version = "0.10.6", features = ["serde"] }

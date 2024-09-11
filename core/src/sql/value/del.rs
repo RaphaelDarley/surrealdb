@@ -7,6 +7,7 @@ use crate::sql::part::DestructurePart;
 use crate::sql::part::Next;
 use crate::sql::part::Part;
 use crate::sql::value::Value;
+use compact_str::CompactString;
 use reblessive::tree::Stk;
 use std::collections::HashSet;
 
@@ -53,10 +54,10 @@ impl Value {
 					},
 					Part::Index(i) => match path.len() {
 						1 => {
-							v.remove(&i.to_string());
+							v.remove(&i.to_compact_string());
 							Ok(())
 						}
-						_ => match v.get_mut(&i.to_string()) {
+						_ => match v.get_mut(&i.to_compact_string()) {
 							Some(v) if v.is_some() => {
 								stk.run(|stk| v.del(stk, ctx, opt, path.next())).await
 							}

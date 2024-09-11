@@ -2,12 +2,13 @@ use std::{collections::BTreeMap, mem};
 
 #[cfg(all(not(target_arch = "wasm32"), surrealdb_unstable))]
 use async_graphql::BatchRequest;
+use compact_str::{CompactString, ToCompactString};
 use uuid::Uuid;
 
 #[cfg(all(not(target_arch = "wasm32"), surrealdb_unstable))]
 use crate::gql::SchemaCache;
 use crate::{
-	dbs::{QueryType, Response, Session},
+	dbs::{QueryType, Response, Session, Variables},
 	kvs::Datastore,
 	rpc::args::Take,
 	sql::{Array, Function, Model, Statement, Strand, Value},
@@ -20,8 +21,8 @@ pub trait RpcContext {
 	fn kvs(&self) -> &Datastore;
 	fn session(&self) -> &Session;
 	fn session_mut(&mut self) -> &mut Session;
-	fn vars(&self) -> &BTreeMap<String, Value>;
-	fn vars_mut(&mut self) -> &mut BTreeMap<String, Value>;
+	fn vars(&self) -> &BTreeMap<CompactString, Value>;
+	fn vars_mut(&mut self) -> &mut BTreeMap<CompactString, Value>;
 	fn version_data(&self) -> Data;
 
 	const LQ_SUPPORT: bool = false;
@@ -200,17 +201,18 @@ pub trait RpcContext {
 		let Ok((Value::Strand(key), val)) = params.needs_one_or_two() else {
 			return Err(RpcError::InvalidParams);
 		};
+		let key = key.to_compact_string();
 		// Specify the query parameters
 		let var = Some(map! {
-			key.0.clone() => Value::None,
+			key.clone() => Value::None,
 			=> &self.vars()
 		});
 		// Compute the specified parameter
 		match self.kvs().compute(val, self.session(), var).await? {
 			// Remove the variable if undefined
-			Value::None => self.vars_mut().remove(&key.0),
+			Value::None => self.vars_mut().remove(&key),
 			// Store the variable if defined
-			v => self.vars_mut().insert(key.0, v),
+			v => self.vars_mut().insert(key, v),
 		};
 		Ok(Value::Null.into())
 	}
@@ -219,7 +221,7 @@ pub trait RpcContext {
 		let Ok(Value::Strand(key)) = params.needs_one() else {
 			return Err(RpcError::InvalidParams);
 		};
-		self.vars_mut().remove(&key.0);
+		self.vars_mut().remove(&key.to_compact_string());
 		Ok(Value::Null.into())
 	}
 
@@ -233,7 +235,7 @@ pub trait RpcContext {
 		let sql = "KILL $id";
 		// Specify the query parameters
 		let var = map! {
-			String::from("id") => id,
+			CompactString::const_new("id") => id,
 			=> &self.vars()
 		};
 		// Execute the query on the database
@@ -253,7 +255,7 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = map! {
-			String::from("tb") => tb.could_be_table(),
+			CompactString::const_new("tb") => tb.could_be_table(),
 			=> &self.vars()
 		};
 		// Execute the query on the database
@@ -277,7 +279,7 @@ pub trait RpcContext {
 		let sql = "SELECT * FROM $what";
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
+			CompactString::const_new("what") => what.could_be_table(),
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -307,7 +309,7 @@ pub trait RpcContext {
 			Value::None | Value::Null => {
 				let sql = "INSERT $data RETURN AFTER";
 				let var = Some(map! {
-					String::from("data") => data,
+					CompactString::const_new("data") => data,
 					=> &self.vars()
 				});
 				self.kvs().execute(sql, self.session(), var).await?
@@ -315,8 +317,8 @@ pub trait RpcContext {
 			what => {
 				let sql = "INSERT INTO $what $data RETURN AFTER";
 				let var = Some(map! {
-					String::from("what") => what.could_be_table(),
-					String::from("data") => data,
+					CompactString::const_new("what") => what.could_be_table(),
+					CompactString::const_new("data") => data,
 					=> &self.vars()
 				});
 				self.kvs().execute(sql, self.session(), var).await?
@@ -343,7 +345,7 @@ pub trait RpcContext {
 			Value::None | Value::Null => {
 				let sql = "INSERT RELATION $data RETURN AFTER";
 				let vars = Some(map! {
-					String::from("data") => data,
+					CompactString::const_new("data") => data,
 					=> &self.vars()
 				});
 				self.kvs().execute(sql, self.session(), vars).await?
@@ -351,8 +353,8 @@ pub trait RpcContext {
 			Value::Table(_) | Value::Strand(_) => {
 				let sql = "INSERT RELATION INTO $what $data RETURN AFTER";
 				let vars = Some(map! {
-						String::from("data") => data,
-				String::from("what") => what.could_be_table(),
+						CompactString::const_new("data") => data,
+				CompactString::const_new("what") => what.could_be_table(),
 						=> &self.vars()
 					});
 				self.kvs().execute(sql, self.session(), vars).await?
@@ -386,8 +388,8 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what,
-			String::from("data") => data,
+			CompactString::const_new("what") => what,
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -419,8 +421,8 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
-			String::from("data") => data,
+			CompactString::const_new("what") => what.could_be_table(),
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -452,8 +454,8 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
-			String::from("data") => data,
+			CompactString::const_new("what") => what.could_be_table(),
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -485,8 +487,8 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
-			String::from("data") => data,
+			CompactString::const_new("what") => what.could_be_table(),
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -517,8 +519,8 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
-			String::from("data") => data,
+			CompactString::const_new("what") => what.could_be_table(),
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -550,10 +552,10 @@ pub trait RpcContext {
 		};
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("from") => from,
-			String::from("kind") => kind.could_be_table(),
-			String::from("to") => to,
-			String::from("data") => data,
+			CompactString::const_new("from") => from,
+			CompactString::const_new("kind") => kind.could_be_table(),
+			CompactString::const_new("to") => to,
+			CompactString::const_new("data") => data,
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -581,7 +583,7 @@ pub trait RpcContext {
 		let sql = "DELETE $what RETURN BEFORE";
 		// Specify the query parameters
 		let var = Some(map! {
-			String::from("what") => what.could_be_table(),
+			CompactString::const_new("what") => what.could_be_table(),
 			=> &self.vars()
 		});
 		// Execute the query on the database
@@ -789,11 +791,7 @@ pub trait RpcContext {
 	// Private methods
 	// ------------------------------
 
-	async fn query_inner(
-		&self,
-		query: Value,
-		vars: Option<BTreeMap<String, Value>>,
-	) -> Result<Vec<Response>, RpcError> {
+	async fn query_inner(&self, query: Value, vars: Variables) -> Result<Vec<Response>, RpcError> {
 		// If no live query handler force realtime off
 		if !Self::LQ_SUPPORT && self.session().rt {
 			return Err(RpcError::BadLQConfig);

@@ -99,9 +99,9 @@ impl Display for Node {
 impl InfoStructure for Node {
 	fn structure(self) -> Value {
 		Value::from(map! {
-			"id".to_string() => Value::from(self.id),
-			"seen".to_string() => self.hb.structure(),
-			"active".to_string() => Value::from(!self.gc),
+			"id" => Value::from(self.id),
+			"seen" => self.hb.structure(),
+			"active" => Value::from(!self.gc),
 		})
 	}
 }

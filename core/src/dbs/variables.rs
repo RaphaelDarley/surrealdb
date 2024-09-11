@@ -1,10 +1,12 @@
+use compact_str::CompactString;
+
 use crate::cnf::PROTECTED_PARAM_NAMES;
 use crate::ctx::MutableContext;
 use crate::err::Error;
 use crate::sql::value::Value;
 use std::collections::BTreeMap;
 
-pub(crate) type Variables = Option<BTreeMap<String, Value>>;
+pub(crate) type Variables = Option<BTreeMap<CompactString, Value>>;
 
 pub(crate) trait Attach {
 	fn attach(self, ctx: &mut MutableContext) -> Result<(), Error>;

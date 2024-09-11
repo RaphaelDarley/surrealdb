@@ -110,9 +110,9 @@ impl TableMutation {
 			TableMutation::Del(t) => {
 				h.insert(
 					"delete".to_string(),
-					Value::Object(Object::from(map! {
-						"id".to_string() => Value::Thing(t)
-					})),
+					Value::from(map! {
+						"id" => Value::Thing(t)
+					}),
 				);
 				h
 			}
@@ -123,9 +123,9 @@ impl TableMutation {
 			TableMutation::DelWithOriginal(id, _val) => {
 				h.insert(
 					"delete".to_string(),
-					Value::Object(Object::from(map! {
-					"id".to_string() => Value::Thing(id),
-					})),
+					Value::from(map! {
+					"id" => Value::Thing(id),
+					}),
 				);
 				h
 			}
@@ -292,10 +292,10 @@ mod tests {
 					TableMutation::Del(Thing::from(("mytb".to_string(), "tobie".to_string()))),
 					TableMutation::DelWithOriginal(
 						Thing::from(("mytb".to_string(), "tobie".to_string())),
-						Value::Object(Object::from(map! {
+						Value::from(map! {
 								"id" => Value::from(Thing::from(("mytb".to_string(), "tobie".to_string()))),
 								"note" => Value::from("surreal"),
-						})),
+						}),
 					),
 					TableMutation::Def(DefineTableStatement {
 						name: "mytb".into(),
