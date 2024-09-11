@@ -7,6 +7,7 @@ use crate::sql::{
 	fmt::{is_pretty, pretty_indent, Fmt, Pretty},
 	Operation, Thing, Value,
 };
+use compact_str::{CompactString, ToCompactString};
 use reblessive::tree::Stk;
 use revision::revisioned;
 use serde::{Deserialize, Serialize};
@@ -24,29 +25,29 @@ pub(crate) const TOKEN: &str = "$surrealdb::private::sql::Object";
 #[serde(rename = "$surrealdb::private::sql::Object")]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[non_exhaustive]
-pub struct Object(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<String, Value>);
+pub struct Object(#[serde(with = "no_nul_bytes_in_keys")] pub BTreeMap<CompactString, Value>);
 
 impl From<BTreeMap<&str, Value>> for Object {
 	fn from(v: BTreeMap<&str, Value>) -> Self {
-		Self(v.into_iter().map(|(key, val)| (key.to_string(), val)).collect())
+		Self(v.into_iter().map(|(key, val)| (key.to_compact_string(), val)).collect())
 	}
 }
 
 impl From<BTreeMap<String, Value>> for Object {
 	fn from(v: BTreeMap<String, Value>) -> Self {
-		Self(v)
+		Self(v.into_iter().map(|(key, val)| (key.to_compact_string(), val)).collect())
 	}
 }
 
 impl From<HashMap<&str, Value>> for Object {
 	fn from(v: HashMap<&str, Value>) -> Self {
-		Self(v.into_iter().map(|(key, val)| (key.to_string(), val)).collect())
+		Self(v.into_iter().map(|(key, val)| (key.to_compact_string(), val)).collect())
 	}
 }
 
 impl From<HashMap<String, Value>> for Object {
 	fn from(v: HashMap<String, Value>) -> Self {
-		Self(v.into_iter().collect())
+		Self(v.into_iter().map(|(key, val)| (key.to_compact_string(), val)).collect())
 	}
 }
 
@@ -118,7 +119,7 @@ impl From<Operation> for Object {
 }
 
 impl Deref for Object {
-	type Target = BTreeMap<String, Value>;
+	type Target = BTreeMap<CompactString, Value>;
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
@@ -131,8 +132,8 @@ impl DerefMut for Object {
 }
 
 impl IntoIterator for Object {
-	type Item = (String, Value);
-	type IntoIter = std::collections::btree_map::IntoIter<String, Value>;
+	type Item = (CompactString, Value);
+	type IntoIter = std::collections::btree_map::IntoIter<CompactString, Value>;
 	fn into_iter(self) -> Self::IntoIter {
 		self.0.into_iter()
 	}
