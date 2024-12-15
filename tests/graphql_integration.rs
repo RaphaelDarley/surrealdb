@@ -63,7 +63,11 @@ mod graphql_integration {
 
 		// check errors with no tables
 		{
-			let res = client.post(gql_url).body("").send().await?;
+			let res = client
+				.post(gql_url)
+				.body(json!({"query": r#"query{foo{id, val}}"#}).to_string())
+				.send()
+				.await?;
 			assert_eq!(res.status(), 400);
 			let body = res.text().await?;
 			assert!(body.contains("no tables found in database"), "body: {body}")
